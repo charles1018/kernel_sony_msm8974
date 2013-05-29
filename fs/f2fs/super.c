@@ -41,8 +41,7 @@ static struct kset *f2fs_kset;
 
 /* f2fs-wide shrinker description */
 static struct shrinker f2fs_shrinker_info = {
-	.scan_objects = f2fs_shrink_scan,
-	.count_objects = f2fs_shrink_count,
+	.shrink = f2fs_shrink_scan,
 	.seeks = DEFAULT_SEEKS,
 };
 
@@ -459,16 +458,10 @@ static int f2fs_drop_inode(struct inode *inode)
 			if (f2fs_is_atomic_file(inode))
 				commit_inmem_pages(inode, true);
 
-			/* should remain fi->extent_tree for writepage */
-			f2fs_destroy_extent_node(inode);
-
-			sb_start_intwrite(inode->i_sb);
 			i_size_write(inode, 0);
 
 			if (F2FS_HAS_BLOCKS(inode))
 				f2fs_truncate(inode, true);
-
-			sb_end_intwrite(inode->i_sb);
 
 #ifdef CONFIG_F2FS_FS_ENCRYPTION
 			if (F2FS_I(inode)->i_crypt_info)
@@ -707,7 +700,7 @@ static int segment_info_seq_show(struct seq_file *seq, void *offset)
 
 static int segment_info_open_fs(struct inode *inode, struct file *file)
 {
-	return single_open(file, segment_info_seq_show, PDE_DATA(inode));
+	return single_open(file, segment_info_seq_show, PDE(inode)->data);
 }
 
 static const struct file_operations f2fs_seq_segment_info_fops = {
@@ -1395,7 +1388,6 @@ static struct file_system_type f2fs_fs_type = {
 	.kill_sb	= kill_f2fs_super,
 	.fs_flags	= FS_REQUIRES_DEV,
 };
-MODULE_ALIAS_FS("f2fs");
 
 static int __init init_inodecache(void)
 {
@@ -1446,9 +1438,7 @@ static int __init init_f2fs_fs(void)
 	if (err)
 		goto free_kset;
 
-	err = register_shrinker(&f2fs_shrinker_info);
-	if (err)
-		goto free_crypto;
+	register_shrinker(&f2fs_shrinker_info);
 
 	err = register_filesystem(&f2fs_fs_type);
 	if (err)
@@ -1459,7 +1449,6 @@ static int __init init_f2fs_fs(void)
 
 free_shrinker:
 	unregister_shrinker(&f2fs_shrinker_info);
-free_crypto:
 	f2fs_exit_crypto();
 free_kset:
 	kset_unregister(f2fs_kset);
