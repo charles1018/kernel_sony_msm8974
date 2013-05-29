@@ -14,8 +14,8 @@
 #include <linux/blkdev.h>
 #include <linux/prefetch.h>
 #include <linux/kthread.h>
-#include <linux/vmalloc.h>
 #include <linux/swap.h>
+#include <linux/timer.h>
 
 #include "f2fs.h"
 #include "segment.h"
@@ -28,6 +28,65 @@
 static struct kmem_cache *discard_entry_slab;
 static struct kmem_cache *sit_entry_set_slab;
 static struct kmem_cache *inmem_entry_slab;
+
+/**
+ * Copied from latest lib/llist.c
+ * llist_for_each_entry_safe - iterate over some deleted entries of
+ *                             lock-less list of given type
+ *			       safe against removal of list entry
+ * @pos:	the type * to use as a loop cursor.
+ * @n:		another type * to use as temporary storage
+ * @node:	the first entry of deleted list entries.
+ * @member:	the name of the llist_node with the struct.
+ *
+ * In general, some entries of the lock-less list can be traversed
+ * safely only after being removed from list, so start with an entry
+ * instead of list head.
+ *
+ * If being used on entries deleted from lock-less list directly, the
+ * traverse order is from the newest to the oldest added entry.  If
+ * you want to traverse from the oldest to the newest, you must
+ * reverse the order by yourself before traversing.
+ */
+#define llist_for_each_entry_safe(pos, n, node, member)			       \
+	for (pos = llist_entry((node), typeof(*pos), member);		       \
+		&pos->member != NULL &&					       \
+		(n = llist_entry(pos->member.next, typeof(*n), member), true); \
+		pos = n)
+
+/**
+ * Copied from latest lib/llist.c
+ * llist_reverse_order - reverse order of a llist chain
+ * @head:	first item of the list to be reversed
+ *
+ * Reverse the order of a chain of llist entries and return the
+ * new first entry.
+ */
+struct llist_node *llist_reverse_order(struct llist_node *head)
+{
+	struct llist_node *new_head = NULL;
+
+	while (head) {
+		struct llist_node *tmp = head;
+		head = head->next;
+		tmp->next = new_head;
+		new_head = tmp;
+	}
+
+	return new_head;
+}
+
+/**
+ * Copied from latest linux/list.h
+ * list_last_entry - get the last element from a list
+ * @ptr:        the list head to take the element from.
+ * @type:       the type of the struct this is embedded in.
+ * @member:     the name of the list_struct within the struct.
+ *
+ * Note, that list is expected to be not empty.
+ */
+#define list_last_entry(ptr, type, member) \
+	list_entry((ptr)->prev, type, member)
 
 /*
  * __reverse_ffs is copied from include/asm-generic/bitops/__ffs.h since
@@ -296,7 +355,7 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi)
 	 */
 	if (has_not_enough_free_secs(sbi, 0)) {
 		mutex_lock(&sbi->gc_mutex);
-		f2fs_gc(sbi);
+		f2fs_gc(sbi, false);
 	}
 }
 
@@ -316,8 +375,36 @@ void f2fs_balance_fs_bg(struct f2fs_sb_info *sbi)
 	/* checkpoint is the only way to shrink partial cached entries */
 	if (!available_free_memory(sbi, NAT_ENTRIES) ||
 			excess_prefree_segs(sbi) ||
-			!available_free_memory(sbi, INO_ENTRIES))
+			!available_free_memory(sbi, INO_ENTRIES) ||
+			jiffies > sbi->cp_expires)
 		f2fs_sync_fs(sbi->sb, true);
+}
+
+struct __submit_bio_ret {
+	struct completion event;
+	int error;
+};
+
+static void __submit_bio_wait_endio(struct bio *bio, int error)
+{
+	struct __submit_bio_ret *ret = bio->bi_private;
+
+	ret->error = error;
+	complete(&ret->event);
+}
+
+static int __submit_bio_wait(int rw, struct bio *bio)
+{
+	struct __submit_bio_ret ret;
+
+	rw |= REQ_SYNC;
+	init_completion(&ret.event);
+	bio->bi_private = &ret;
+	bio->bi_end_io = __submit_bio_wait_endio;
+	submit_bio(rw, bio);
+	wait_for_completion(&ret.event);
+
+	return ret.error;
 }
 
 static int issue_flush_thread(void *data)
@@ -340,7 +427,7 @@ repeat:
 		fcc->dispatch_list = llist_reverse_order(fcc->dispatch_list);
 
 		bio->bi_bdev = sbi->sb->s_bdev;
-		ret = submit_bio_wait(WRITE_FLUSH, bio);
+		ret = __submit_bio_wait(WRITE_FLUSH, bio);
 
 		llist_for_each_entry_safe(cmd, next,
 					  fcc->dispatch_list, llnode) {
@@ -372,7 +459,7 @@ int f2fs_issue_flush(struct f2fs_sb_info *sbi)
 		int ret;
 
 		bio->bi_bdev = sbi->sb->s_bdev;
-		ret = submit_bio_wait(WRITE_FLUSH, bio);
+		ret = __submit_bio_wait(WRITE_FLUSH, bio);
 		bio_put(bio);
 		return ret;
 	}
@@ -1445,7 +1532,7 @@ static inline bool is_merged_page(struct f2fs_sb_info *sbi,
 		return false;
 	}
 
-	bio_for_each_segment_all(bvec, io->bio, i) {
+	__bio_for_each_segment(bvec, io->bio, i, 0) {
 
 		if (bvec->bv_page->mapping) {
 			target = bvec->bv_page;
@@ -1986,12 +2073,13 @@ static int build_sit_info(struct f2fs_sb_info *sbi)
 
 	SM_I(sbi)->sit_info = sit_i;
 
-	sit_i->sentries = vzalloc(MAIN_SEGS(sbi) * sizeof(struct seg_entry));
+	sit_i->sentries = f2fs_kvzalloc(MAIN_SEGS(sbi) *
+					sizeof(struct seg_entry), GFP_KERNEL);
 	if (!sit_i->sentries)
 		return -ENOMEM;
 
 	bitmap_size = f2fs_bitmap_size(MAIN_SEGS(sbi));
-	sit_i->dirty_sentries_bitmap = kzalloc(bitmap_size, GFP_KERNEL);
+	sit_i->dirty_sentries_bitmap = f2fs_kvzalloc(bitmap_size, GFP_KERNEL);
 	if (!sit_i->dirty_sentries_bitmap)
 		return -ENOMEM;
 
@@ -2013,8 +2101,8 @@ static int build_sit_info(struct f2fs_sb_info *sbi)
 		return -ENOMEM;
 
 	if (sbi->segs_per_sec > 1) {
-		sit_i->sec_entries = vzalloc(MAIN_SECS(sbi) *
-					sizeof(struct sec_entry));
+		sit_i->sec_entries = f2fs_kvzalloc(MAIN_SECS(sbi) *
+					sizeof(struct sec_entry), GFP_KERNEL);
 		if (!sit_i->sec_entries)
 			return -ENOMEM;
 	}
@@ -2059,12 +2147,12 @@ static int build_free_segmap(struct f2fs_sb_info *sbi)
 	SM_I(sbi)->free_info = free_i;
 
 	bitmap_size = f2fs_bitmap_size(MAIN_SEGS(sbi));
-	free_i->free_segmap = kmalloc(bitmap_size, GFP_KERNEL);
+	free_i->free_segmap = f2fs_kvmalloc(bitmap_size, GFP_KERNEL);
 	if (!free_i->free_segmap)
 		return -ENOMEM;
 
 	sec_bitmap_size = f2fs_bitmap_size(MAIN_SECS(sbi));
-	free_i->free_secmap = kmalloc(sec_bitmap_size, GFP_KERNEL);
+	free_i->free_secmap = f2fs_kvmalloc(sec_bitmap_size, GFP_KERNEL);
 	if (!free_i->free_secmap)
 		return -ENOMEM;
 
@@ -2205,7 +2293,7 @@ static int init_victim_secmap(struct f2fs_sb_info *sbi)
 	struct dirty_seglist_info *dirty_i = DIRTY_I(sbi);
 	unsigned int bitmap_size = f2fs_bitmap_size(MAIN_SECS(sbi));
 
-	dirty_i->victim_secmap = kzalloc(bitmap_size, GFP_KERNEL);
+	dirty_i->victim_secmap = f2fs_kvzalloc(bitmap_size, GFP_KERNEL);
 	if (!dirty_i->victim_secmap)
 		return -ENOMEM;
 	return 0;
@@ -2227,7 +2315,7 @@ static int build_dirty_segmap(struct f2fs_sb_info *sbi)
 	bitmap_size = f2fs_bitmap_size(MAIN_SEGS(sbi));
 
 	for (i = 0; i < NR_DIRTY_TYPE; i++) {
-		dirty_i->dirty_segmap[i] = kzalloc(bitmap_size, GFP_KERNEL);
+		dirty_i->dirty_segmap[i] = f2fs_kvzalloc(bitmap_size, GFP_KERNEL);
 		if (!dirty_i->dirty_segmap[i])
 			return -ENOMEM;
 	}
@@ -2332,7 +2420,7 @@ static void discard_dirty_segmap(struct f2fs_sb_info *sbi,
 	struct dirty_seglist_info *dirty_i = DIRTY_I(sbi);
 
 	mutex_lock(&dirty_i->seglist_lock);
-	kfree(dirty_i->dirty_segmap[dirty_type]);
+	kvfree(dirty_i->dirty_segmap[dirty_type]);
 	dirty_i->nr_dirty[dirty_type] = 0;
 	mutex_unlock(&dirty_i->seglist_lock);
 }
@@ -2340,7 +2428,7 @@ static void discard_dirty_segmap(struct f2fs_sb_info *sbi,
 static void destroy_victim_secmap(struct f2fs_sb_info *sbi)
 {
 	struct dirty_seglist_info *dirty_i = DIRTY_I(sbi);
-	kfree(dirty_i->victim_secmap);
+	kvfree(dirty_i->victim_secmap);
 }
 
 static void destroy_dirty_segmap(struct f2fs_sb_info *sbi)
@@ -2379,8 +2467,8 @@ static void destroy_free_segmap(struct f2fs_sb_info *sbi)
 	if (!free_i)
 		return;
 	SM_I(sbi)->free_info = NULL;
-	kfree(free_i->free_segmap);
-	kfree(free_i->free_secmap);
+	kvfree(free_i->free_segmap);
+	kvfree(free_i->free_secmap);
 	kfree(free_i);
 }
 
@@ -2401,9 +2489,9 @@ static void destroy_sit_info(struct f2fs_sb_info *sbi)
 	}
 	kfree(sit_i->tmp_map);
 
-	vfree(sit_i->sentries);
-	vfree(sit_i->sec_entries);
-	kfree(sit_i->dirty_sentries_bitmap);
+	kvfree(sit_i->sentries);
+	kvfree(sit_i->sec_entries);
+	kvfree(sit_i->dirty_sentries_bitmap);
 
 	SM_I(sbi)->sit_info = NULL;
 	kfree(sit_i->sit_bitmap);
