@@ -39,6 +39,8 @@
 #define QPNP_VIB_VTG_SET_MASK		0x1F
 #define QPNP_VIB_LOGIC_SHIFT		4
 
+static bool vibrator_enable = 1;
+
 struct qpnp_vib {
 	struct spmi_device *spmi;
 	struct hrtimer vib_timer;
@@ -137,6 +139,9 @@ static int qpnp_vib_set(struct qpnp_vib *vib, int on)
 {
 	int rc;
 	u8 val;
+
+	if (!vibrator_enable)
+		return 1;
 
 	if (on) {
 		val = vib->reg_vtg_ctl;
@@ -373,8 +378,28 @@ static ssize_t vtg_level_store(struct kobject *kobj, struct kobj_attribute *attr
 }
 static struct kobj_attribute vtg_level_interface = __ATTR(vtg_level, 0644, vtg_level_show, vtg_level_store);
 
+static ssize_t vibrator_enable_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	sprintf(buf, "%d\n", (int)vibrator_enable);
+
+	return strlen(buf);
+}
+
+static ssize_t vibrator_enable_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int val;
+
+	if (sscanf(buf, "%u", &val)) {
+		vibrator_enable = val;
+	}
+
+	return count;
+}
+static struct kobj_attribute vibrator_enable_interface = __ATTR(enable, 0644, vibrator_enable_show, vibrator_enable_store);
+
 static struct attribute *qpnp_vibrator_attrs[] = {
-	&vtg_level_interface.attr, 
+	&vtg_level_interface.attr,
+	&vibrator_enable_interface.attr,
 	NULL,
 };
 
