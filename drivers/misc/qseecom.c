@@ -960,8 +960,8 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		&qseecom.registered_app_list_lock, flags);
 		ret = 0;
 	} else {
-		pr_warn("App (%s) does'nt exist, loading apps for first time\n",
-			(char *)(load_img_req.img_name));
+//		pr_warn("App (%s) does'nt exist, loading apps for first time\n",
+//			(char *)(load_img_req.img_name));
 		/* Get the handle of the shared fd */
 		ihandle = ion_import_dma_buf(qseecom.ion_clnt,
 					load_img_req.ifd_data_fd);
@@ -1051,8 +1051,8 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 		spin_unlock_irqrestore(&qseecom.registered_app_list_lock,
 									flags);
 
-		pr_warn("App with id %d (%s) now loaded\n", app_id,
-		(char *)(load_img_req.img_name));
+//		pr_warn("App with id %d (%s) now loaded\n", app_id,
+//		(char *)(load_img_req.img_name));
 	}
 	data->client.app_id = app_id;
 	memcpy(data->client.app_name, load_img_req.img_name,
@@ -1175,7 +1175,7 @@ static int qseecom_unload_app(struct qseecom_dev_handle *data,
 								req.app_id);
 			return -EFAULT;
 		} else {
-			pr_warn("App id %d now unloaded\n", req.app_id);
+//			pr_warn("App id %d now unloaded\n", req.app_id);
 		}
 		if (resp.result == QSEOS_RESULT_FAILURE) {
 			pr_err("app (%d) unload_failed!!\n",
@@ -1183,8 +1183,8 @@ static int qseecom_unload_app(struct qseecom_dev_handle *data,
 			return -EFAULT;
 		}
 		if (resp.result == QSEOS_RESULT_SUCCESS)
-			pr_info("App (%d) is unloaded!!\n",
-					data->client.app_id);
+//			pr_info("App (%d) is unloaded!!\n",
+//					data->client.app_id);
 		__qseecom_cleanup_app(data);
 		if (resp.result == QSEOS_RESULT_INCOMPLETE) {
 			ret = __qseecom_process_incomplete_cmd(data, &resp);
@@ -1204,7 +1204,7 @@ static int qseecom_unload_app(struct qseecom_dev_handle *data,
 		} else {
 			if (ptr_app->ref_cnt == 1) {
 				ptr_app->ref_cnt = 0;
-				pr_info("ref_count set to 0\n");
+//				pr_info("ref_count set to 0\n");
 			} else {
 				ptr_app->ref_cnt--;
 				pr_info("Can't unload app(%d) inuse\n",
