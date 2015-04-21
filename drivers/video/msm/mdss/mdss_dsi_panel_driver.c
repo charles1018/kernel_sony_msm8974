@@ -25,6 +25,7 @@
 #include <linux/qpnp/pwm.h>
 #include <linux/err.h>
 #include <linux/regulator/consumer.h>
+#include <linux/mdss_dsi_panel.h>
 
 #ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
@@ -86,6 +87,11 @@ static int mdss_dsi_panel_pcc_setup(struct mdss_panel_data *pdata);
 static void vsync_handler(struct mdss_mdp_ctl *ctl, ktime_t t);
 
 struct mdss_mdp_vsync_handler vs_handle;
+
+bool mdss_panel_is_on(void)
+{
+	return display_onoff_state;
+}
 
 /* pcc data infomation */
 #define PANEL_SKIP_ID			0xff
