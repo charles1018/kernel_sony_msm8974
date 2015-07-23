@@ -111,6 +111,10 @@ out:
 	mutex_unlock(&l2bw_lock);
 }
 
+#ifdef CONFIG_TURBO_BOOST
+extern int msm_turbo(int);
+#endif
+
 struct cpu_freq {
 	uint32_t max;
 	uint32_t min;
@@ -120,6 +124,7 @@ struct cpu_freq {
 };
 
 static DEFINE_PER_CPU(struct cpu_freq, cpu_freq_info);
+
 static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
 			unsigned int index)
 {
@@ -141,6 +146,10 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
 			pr_debug("min: limiting freq to %d\n", new_freq);
 		}
 	}
+
+#ifdef CONFIG_TURBO_BOOST
+	new_freq = msm_turbo(new_freq);
+#endif
 
 	freqs.old = policy->cur;
 	freqs.new = new_freq;
@@ -402,6 +411,7 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 
 static int __cpuinit msm_cpufreq_cpu_callback(struct notifier_block *nfb,
 		unsigned long action, void *hcpu)
+
 {
 	unsigned int cpu = (unsigned long)hcpu;
 	int rc;
@@ -601,8 +611,8 @@ static int cpufreq_parse_dt(struct device *dev)
 
 	freq_table[i].index = i;
 	freq_table[i].frequency = CPUFREQ_TABLE_END;
-	
-	#ifdef CONFIG_CPU_VOLTAGE_TABLE
+
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
 	dts_freq_table =
 		devm_kzalloc(dev, (nf + 1) *
 			sizeof(struct cpufreq_frequency_table),

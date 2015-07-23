@@ -28,7 +28,11 @@
 
 //#define DEBUG_CPU_LIMITER
 
+#ifdef CONFIG_MSM_CPU_FREQ_SET_MIN_MAX
+uint32_t limited_max_freq = CONFIG_MSM_CPU_FREQ_MAX;
+#else
 uint32_t limited_max_freq = 2265600;
+#endif
 
 static int update_cpu_max_freq(int cpu, uint32_t max_freq)
 {
@@ -88,7 +92,7 @@ static ssize_t msm_cpufreq_limit_version_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute msm_cpufreq_limit_attribute = 
-	__ATTR(cpufreq_limit, S_IRUGO | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+	__ATTR(cpufreq_limit, 0666,
 		msm_cpufreq_limit_show,
 		msm_cpufreq_limit_store);
 

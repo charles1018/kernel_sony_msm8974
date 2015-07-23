@@ -1910,13 +1910,13 @@ config FAST_HOTPLUG
 	help
 	  Kernel based core control.
 
-if CPU_FREQ_MSM
-
 config ALUCARD_HOTPLUG
 	bool "Enable alucard-hotplug cpu hotplug driver"
 	default y
 	help
 	  Generic Alucard-hotplug cpu hotplug driver for ARM SOCs
+
+if CPU_FREQ_MSM
 
 config MSM_CPU_FREQ_SET_MIN_MAX
 	bool "Set Min/Max CPU frequencies."
@@ -1935,14 +1935,6 @@ config MSM_CPU_FREQ_MIN
 	depends on MSM_CPU_FREQ_SET_MIN_MAX
 	default 245760
 
-endif # CPU_FREQ_MSM
-
-config CPU_OC
-	bool "allow 2.457 GHz OC bin"
-	default n
-	help
-	  Unlock the CPU Overclock freq speed @ 2.457 GHz
-
 config MSM_CPUFREQ_LIMITER
 	tristate "MSM CPU frequency limiter"
 	default n
@@ -1953,6 +1945,21 @@ config MSM_CPUFREQ_LIMITER
 	  module will be called cpufreq_stats.
 
 	  If in doubt, say N.
+
+config CPU_OC
+	bool "allow 2.3 GHz OC bin"
+	default n
+	help
+	  Unlock the CPU Overclock freq speed @ 2.3 GHz
+
+config OC_ULTIMATE
+	bool "allow 2.419 GHz max OC option"
+	depends on CPU_OC
+	default n
+	help
+	  Unlock the ultimate Overclock freq speed @ 2.419 GHz
+
+endif # CPU_FREQ_MSM
 
 config MSM_DEVFREQ_CPUBW
 	bool "Devfreq device for CPU<->DDR IB/AB BW voting"
@@ -1968,17 +1975,25 @@ config MSM_DEVFREQ_CPUBW
 	  agnostic interface to so that some of the devfreq governors can be
 	  shared across SoCs.
 
-config INTELLI_PLUG
-	bool "Enable intelli-plug cpu hotplug driver"
-	default n
+config TURBO_BOOST
+	bool "Enable CPU Turbo boost option"
+	default y
 	help
-	  Generic Intelli-plug cpu hotplug driver for ARM SOCs
+	  This option allows overclocking of 2 cores to higher clock rate
+	  than stock maximum.  When more than 2 cores are active, the clock
+	  is limited to stock max speeds
 
 config CPU_VOLTAGE_TABLE
 	bool "Enable CPU Voltage Table via sysfs for adjustements"
 	default n
 	help
 	DTS based kernel User Votlage Control
+
+config INTELLI_PLUG
+	bool "Enable intelli-plug cpu hotplug driver"
+	default n
+	help
+	  Generic Intelli-plug cpu hotplug driver for ARM SOCs
 
 config MSM_AVS_HW
 	bool "Enable Adaptive Voltage Scaling (AVS)"
