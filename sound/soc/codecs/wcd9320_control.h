@@ -26,7 +26,6 @@ extern bool hpldiggain_con;
 extern bool hprdiggain_con;
 extern bool spkdiggain_con;
 extern bool spkdrv_ena;
-extern int  uhqa_mode;
 
 extern bool hpwidget;
 extern bool spkwidget;
