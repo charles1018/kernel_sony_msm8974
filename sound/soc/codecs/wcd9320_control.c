@@ -39,7 +39,7 @@ u32 hplanagain = 0x20;
 u32 hpranagain = 0x20;
 u32 hpldiggain = 0x08;
 u32 hprdiggain = 0x08;
-u32 spkdiggain = 0x05;
+u32 spkdiggain = 0x02;
 
 static ssize_t version_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
