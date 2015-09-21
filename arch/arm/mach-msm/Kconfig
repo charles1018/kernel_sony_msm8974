@@ -1915,6 +1915,19 @@ config MSM_CPU_FREQ_MIN
 	depends on MSM_CPU_FREQ_SET_MIN_MAX
 	default 245760
 
+config CPU_OC
+	bool "allow 2.419 GHz OC bin"
+	default n
+	help
+	  Unlock the CPU Overclock freq speed @ 2.419 GHz
+
+config OC_ULTIMATE
+	bool "allow 2.419 GHz max OC option"
+	depends on CPU_OC
+	default n
+	help
+	  Unlock the ultimate Overclock freq speed @ 2.419 GHz
+
 endif # CPU_FREQ_MSM
 
 config MSM_DEVFREQ_CPUBW
