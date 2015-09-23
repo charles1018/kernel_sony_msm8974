@@ -33,9 +33,6 @@ static int devfreq_simple_ondemand_func(struct devfreq *df,
 	struct devfreq_simple_ondemand_data *data = df->data;
 	int err;
 	unsigned long long a, b;
-	unsigned int dfso_upthreshold = DFSO_UPTHRESHOLD;
-	unsigned int dfso_downdifferential = DFSO_DOWNDIFFERENCTIAL;
-	struct devfreq_simple_ondemand_data *data = df->data;
 	unsigned long max = (df->max_freq) ? df->max_freq : UINT_MAX;
 	unsigned long min = (df->min_freq) ? df->min_freq : 0;
 
