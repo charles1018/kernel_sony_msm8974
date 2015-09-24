@@ -1910,13 +1910,13 @@ config FAST_HOTPLUG
 	help
 	  Kernel based core control.
 
-if CPU_FREQ_MSM
-
 config ALUCARD_HOTPLUG
 	bool "Enable alucard-hotplug cpu hotplug driver"
 	default y
 	help
 	  Generic Alucard-hotplug cpu hotplug driver for ARM SOCs
+
+if CPU_FREQ_MSM
 
 config MSM_CPU_FREQ_SET_MIN_MAX
 	bool "Set Min/Max CPU frequencies."
@@ -1935,6 +1935,17 @@ config MSM_CPU_FREQ_MIN
 	depends on MSM_CPU_FREQ_SET_MIN_MAX
 	default 245760
 
+config MSM_CPUFREQ_LIMITER
+	tristate "MSM CPU frequency limiter"
+	default n
+	help
+	  This driver limits MSM CPU frequency through sysfs file system.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cpufreq_stats.
+
+	  If in doubt, say N.
+
 config CPU_OC
 	bool "allow 2.419 GHz OC bin"
 	default n
@@ -1949,17 +1960,6 @@ config OC_ULTIMATE
 	  Unlock the ultimate Overclock freq speed @ 2.419 GHz
 
 endif # CPU_FREQ_MSM
-
-config MSM_CPUFREQ_LIMITER
-	tristate "MSM CPU frequency limiter"
-	default n
-	help
-	  This driver limits MSM CPU frequency through sysfs file system.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called cpufreq_stats.
-
-	  If in doubt, say N.
 
 config MSM_DEVFREQ_CPUBW
 	bool "Devfreq device for CPU<->DDR IB/AB BW voting"
