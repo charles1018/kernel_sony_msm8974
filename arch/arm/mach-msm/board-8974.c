@@ -58,6 +58,7 @@
 #include "board-rdtags.h"
 #endif
 
+#include <linux/persistent_ram.h>
 #include "board-8974-console.h"
 
 static struct memtype_reserve msm8974_reserve_table[] __initdata = {
