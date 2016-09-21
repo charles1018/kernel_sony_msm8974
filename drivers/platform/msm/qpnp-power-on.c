@@ -129,7 +129,7 @@
 #define QPNP_KEY_STATUS_DELAY			msecs_to_jiffies(250)
 
 #ifdef CONFIG_POWERKEY_FORCECRASH
-static int forcecrash_on;
+static int forcecrash_on = 1;
 module_param(forcecrash_on, int, S_IRUGO | S_IWUSR);
 #endif
 
